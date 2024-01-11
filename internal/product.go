@@ -17,7 +17,7 @@ type Product struct {
 	Price        float64
 }
 
-func LoadProducts() (products []Product) {
+func LoadProducts() (products []Product) { // this must be in another file (maybe in the repository)
 	// open the file
 	file, err := os.Open("/Users/martindoming/Desktop/Bootcamp/go-web/products.json")
 	if err != nil {

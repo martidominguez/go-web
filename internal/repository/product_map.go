@@ -1,46 +1,19 @@
-package handlers
+package repository
 
 import (
 	"app/internal"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"strconv"
-	"time"
-
-	"github.com/go-chi/chi/v5"
 )
 
+// in this file, i only handle what is related directly to the products
+
 // this is the handler for the products
-type ProductsHandler struct {
+type ProductsMap struct {
 	data   map[int]internal.Product
 	lastID int
 }
 
-// this is an struct to represent the body of the request
-type BodyRequestProductJSON struct {
-	Name         string  `json:"name"`
-	Quantity     int     `json:"quantity"`
-	Code_value   string  `json:"code_value"`
-	Is_published bool    `json:"is_published"`
-	Expiration   string  `json:"expiration"`
-	Price        float64 `json:"price"`
-}
-
-// this is an struct to represent the response of the request
-type ResponseProductJSON struct {
-	Id           int
-	Name         string
-	Quantity     int
-	Code_value   string
-	Is_published bool
-	Expiration   string
-	Price        float64
-}
-
-// this function is used to migrate all the products from the file to the map
-func NewHandler() *ProductsHandler {
+// NewProductsMap returns a new ProductsMap instance, filled with the products from the json file
+func NewProductsMap() *ProductsMap {
 	productsInfo := internal.LoadProducts()
 
 	// convert the slice into a map
@@ -56,23 +29,43 @@ func NewHandler() *ProductsHandler {
 		}
 	}
 
-	return &ProductsHandler{
+	return &ProductsMap{
 		data:   productMap,
 		lastID: lastID,
 	}
 }
 
-// this is used when you get a GET request to /ping
-func (ph *ProductsHandler) Pong() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("pong"))
+func (ph *ProductsMap) GetAll() (products []internal.Product) {
+	for _, p := range ph.data {
+		products = append(products, p)
 	}
+	return
+}
+
+func (ph *ProductsMap) GetById(id int) (product internal.Product, err error) {
+	product, ok := ph.data[id]
+	if !ok {
+		err = internal.ErrProductNotFound
+	}
+	return
+}
+
+func (ph *ProductsMap) Create(product *internal.Product) (err error) {
+	// code value must be unique
+	for _, p := range (*ph).data {
+		if p.Code_value == product.Code_value {
+			return internal.ErrRepeatedCode
+		}
+	}
+
+	ph.lastID++
+	product.Id = ph.lastID
+	ph.data[product.Id] = *product
+	return
 }
 
 // this is used when you get a GET request to /products
-func (ph *ProductsHandler) GetProducts() http.HandlerFunc {
+/* func (ph *ProductsMap) GetProducts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -81,10 +74,10 @@ func (ph *ProductsHandler) GetProducts() http.HandlerFunc {
 			"data":    ph.data,
 		})
 	}
-}
+} */
 
 // this is used when you get a GET request to /products/{id}
-func (ph *ProductsHandler) GetProductById() http.HandlerFunc {
+/* func (ph *ProductsMap) GetProductById() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idString := chi.URLParam(r, "id")
 
@@ -111,9 +104,10 @@ func (ph *ProductsHandler) GetProductById() http.HandlerFunc {
 			"data":    product,
 		})
 	}
-}
+} */
 
-func (ph *ProductsHandler) CreateProduct() http.HandlerFunc {
+/*
+func (ph *ProductsMap) CreateProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// decode the body of the request
 		var body BodyRequestProductJSON
@@ -168,26 +162,4 @@ func (ph *ProductsHandler) CreateProduct() http.HandlerFunc {
 			"data":    data,
 		})
 	}
-}
-
-func (ph *ProductsHandler) ValidateRules(product *internal.Product) error {
-	// fields cannot be empty
-	if product.Name == "" || product.Quantity == 0 || product.Code_value == "" || product.Expiration == "" || product.Price == 0.0 {
-		return errors.New("fields cannot be empty")
-	}
-
-	// code value must be unique
-	for _, p := range (*ph).data {
-		if p.Code_value == product.Code_value {
-			return errors.New("code value must be unique")
-		}
-	}
-
-	// expiration must be a valid date
-	_, err := time.Parse("02/01/2006", product.Expiration)
-	if err != nil {
-		return errors.New("expiration must be a valid date")
-	}
-
-	return nil
-}
+} */
