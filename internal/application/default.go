@@ -36,10 +36,14 @@ func (h *DefaultHTTP) Run() (err error) {
 	hd := handler.NewDefaultProducts(sv)
 	// - router
 	rt := chi.NewRouter()
+
 	//   endpoints
 	rt.Get("/products", hd.GetAll())
 	rt.Get("/products/{id}", hd.GetById())
 	rt.Post("/products", hd.Create())
+	rt.Put("/products/{id}", hd.Update())
+	rt.Patch("/products/{id}", hd.UpdatePartial())
+	rt.Delete("/products/{id}", hd.Delete())
 
 	// run http server
 	err = http.ListenAndServe(h.addr, rt)

@@ -32,6 +32,35 @@ func (d *MovieDefault) GetById(id int) (product internal.Product, err error) {
 }
 
 func (d *MovieDefault) Create(product *internal.Product) (err error) {
+	// validate the product
+	if err = ValidateProduct(product); err != nil {
+		return
+	}
+
+	// here i must call the repository to create the product
+	err = (*d).rp.Create(product)
+	return
+}
+
+func (d *MovieDefault) Update(product *internal.Product) (err error) {
+	// validate the product
+	if err = ValidateProduct(product); err != nil {
+		return
+	}
+
+	// update product
+	err = (*d).rp.Update(product)
+
+	return
+}
+
+func (d *MovieDefault) Delete(id int) (err error) {
+	// here i must call the repository to delete the product
+	err = (*d).rp.Delete(id)
+	return
+}
+
+func ValidateProduct(product *internal.Product) (err error) {
 	// here i must validate the product
 	// fields cannot be empty
 	if product.Name == "" || product.Quantity == 0 || product.Code_value == "" || product.Expiration == "" || product.Price == 0.0 {
@@ -44,7 +73,5 @@ func (d *MovieDefault) Create(product *internal.Product) (err error) {
 		return internal.ErrInvalidExpiration
 	}
 
-	// here i must call the repository to create the product
-	err = (*d).rp.Create(product)
 	return
 }

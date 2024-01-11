@@ -4,8 +4,11 @@ import (
 	"app/internal"
 	"app/platform/web/request"
 	"app/platform/web/response"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -79,6 +82,14 @@ func (d *DefaultProducts) GetById() http.HandlerFunc {
 
 func (d *DefaultProducts) Create() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// check token
+		token := r.Header.Get("Authorization")
+		err := CheckToken(token)
+		if err != nil {
+			response.Error(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
 		var body BodyRequestProductJSON
 
 		if err := request.JSON(r, &body); err != nil {
@@ -124,26 +135,222 @@ func (d *DefaultProducts) Create() http.HandlerFunc {
 	}
 }
 
-// validate the rules
+func (d *DefaultProducts) Update() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// check token
+		token := r.Header.Get("Authorization")
+		err := CheckToken(token)
+		if err != nil {
+			response.Error(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
 
-/* func (ph *ProductsHandler) ValidateRules(product *internal.Product) error {
-	// fields cannot be empty
-	if product.Name == "" || product.Quantity == 0 || product.Code_value == "" || product.Expiration == "" || product.Price == 0.0 {
-		return errors.New("fields cannot be empty")
+		// request
+		// get the id from path
+		id, err := strconv.Atoi(chi.URLParam(r, "id"))
+		if err != nil {
+			response.Error(w, http.StatusBadRequest, "id is not an int")
+			return
+		}
+
+		// get the body from the request
+		bytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			response.Error(w, http.StatusBadRequest, "cannot read the body")
+			return
+		}
+
+		// get body to map[string]any
+		var bodyMap map[string]any
+		if err := json.Unmarshal(bytes, &bodyMap); err != nil {
+			response.Error(w, http.StatusBadRequest, "cannot make a map from the body")
+			return
+		}
+
+		// validate body
+		if err := ValidateKeyExistante(bodyMap, "name", "quantity", "code_value", "is_published", "expiration", "price"); err != nil {
+			response.Error(w, http.StatusBadRequest, "invalid key")
+			return
+		}
+
+		// get body
+		var body BodyRequestProductJSON
+		if err := json.Unmarshal(bytes, &body); err != nil {
+			response.Error(w, http.StatusBadRequest, "cannot convert the body to json")
+			return
+		}
+
+		// serialize the updated product
+		product := internal.Product{
+			Id:           id,
+			Name:         body.Name,
+			Quantity:     body.Quantity,
+			Code_value:   body.Code_value,
+			Is_published: body.Is_published,
+			Expiration:   body.Expiration,
+			Price:        body.Price,
+		}
+
+		// update the product
+		if err := d.sv.Update(&product); err != nil {
+			switch {
+			case errors.Is(err, internal.ErrProductNotFound):
+				response.Error(w, http.StatusNotFound, "product not found")
+			case errors.Is(err, internal.ErrFieldsEmpty):
+				response.Error(w, http.StatusBadRequest, "fields cannot be empty")
+			default:
+				response.Error(w, http.StatusInternalServerError, "internal server error")
+			}
+			return
+		}
+
+		// response
+		data := ResponseProductJSON{
+			Id:           product.Id,
+			Name:         product.Name,
+			Quantity:     product.Quantity,
+			Code_value:   product.Code_value,
+			Is_published: product.Is_published,
+			Expiration:   product.Expiration,
+			Price:        product.Price,
+		}
+
+		response.JSON(w, http.StatusOK, map[string]any{"message": "product updated", "data": data})
 	}
+}
 
-	// code value must be unique
-	for _, p := range (*ph).data {
-		if p.Code_value == product.Code_value {
-			return errors.New("code value must be unique")
+func (d *DefaultProducts) UpdatePartial() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// check token
+		token := r.Header.Get("Authorization")
+		err := CheckToken(token)
+		if err != nil {
+			response.Error(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		// request
+		// get id from path
+		id, err := strconv.Atoi(chi.URLParam(r, "id"))
+		if err != nil {
+			response.Text(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+
+		// get the product from the service
+		product, err := d.sv.GetById(id)
+		if err != nil {
+			switch {
+			case errors.Is(err, internal.ErrProductNotFound):
+				response.Text(w, http.StatusNotFound, "product not found")
+			default:
+				response.Text(w, http.StatusInternalServerError, "internal server error")
+			}
+			return
+		}
+
+		// serialize product to BodyRequestMovieJSON
+		body := BodyRequestProductJSON{
+			Name:         product.Name,
+			Quantity:     product.Quantity,
+			Code_value:   product.Code_value,
+			Is_published: product.Is_published,
+			Expiration:   product.Expiration,
+			Price:        product.Price,
+		}
+
+		// get body
+		if err := request.JSON(r, &body); err != nil {
+			response.Text(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+
+		// serialize the updated product
+
+		product = internal.Product{
+			Id:           id,
+			Name:         body.Name,
+			Quantity:     body.Quantity,
+			Code_value:   body.Code_value,
+			Is_published: body.Is_published,
+			Expiration:   body.Expiration,
+			Price:        body.Price,
+		}
+
+		// update the product
+		if err := d.sv.Update(&product); err != nil {
+			switch {
+			case errors.Is(err, internal.ErrProductNotFound):
+				response.Error(w, http.StatusNotFound, "product not found")
+			case errors.Is(err, internal.ErrFieldsEmpty):
+				response.Error(w, http.StatusBadRequest, "fields cannot be empty")
+			default:
+				response.Error(w, http.StatusInternalServerError, "internal server error")
+			}
+			return
+		}
+
+		// response
+		data := ResponseProductJSON{
+			Id:           product.Id,
+			Name:         product.Name,
+			Quantity:     product.Quantity,
+			Code_value:   product.Code_value,
+			Is_published: product.Is_published,
+			Expiration:   product.Expiration,
+			Price:        product.Price,
+		}
+
+		response.JSON(w, http.StatusOK, map[string]any{"message": "product updated", "data": data})
+	}
+}
+
+func (d *DefaultProducts) Delete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// check token
+		token := r.Header.Get("Authorization")
+		err := CheckToken(token)
+		if err != nil {
+			response.Error(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+
+		// request
+		// get id from path
+		id, err := strconv.Atoi(chi.URLParam(r, "id"))
+		if err != nil {
+			response.Error(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+
+		// delete the product
+		if err := d.sv.Delete(id); err != nil {
+			switch {
+			case errors.Is(err, internal.ErrProductNotFound):
+				response.Text(w, http.StatusNotFound, "product not found")
+			default:
+				response.Text(w, http.StatusInternalServerError, "internal server error")
+			}
+			return
+		}
+
+		// response
+		response.Text(w, http.StatusOK, "product deleted")
+	}
+}
+
+func ValidateKeyExistante(body map[string]any, keys ...string) (err error) {
+	for _, key := range keys {
+		if _, ok := body[key]; !ok {
+			return errors.New("key does not exist")
 		}
 	}
+	return
+}
 
-	// expiration must be a valid date
-	_, err := time.Parse("02/01/2006", product.Expiration)
-	if err != nil {
-		return errors.New("expiration must be a valid date")
+func CheckToken(tokenSend string) (err error) {
+	if tokenSend != os.Getenv("API_TOKEN") {
+		return errors.New("invalid token")
 	}
-
-	return nil
-} */
+	return
+}
