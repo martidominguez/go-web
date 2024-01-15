@@ -13,17 +13,13 @@ type ProductsMap struct {
 }
 
 // NewProductsMap returns a new ProductsMap instance, filled with the products from the json file
-func NewProductsMap() *ProductsMap {
-	productsInfo := internal.LoadProducts()
+func NewProductsMap(db []internal.Product) *ProductsMap {
 
 	// convert the slice into a map
 	productMap := make(map[int]internal.Product)
-	for _, p := range productsInfo {
-		productMap[p.Id] = p
-	}
-
 	lastID := 0
-	for _, p := range productsInfo {
+	for _, p := range db {
+		productMap[p.Id] = p
 		if p.Id > lastID {
 			lastID = p.Id
 		}
