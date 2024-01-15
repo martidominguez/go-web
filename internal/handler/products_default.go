@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -82,14 +81,6 @@ func (d *DefaultProducts) GetById() http.HandlerFunc {
 
 func (d *DefaultProducts) Create() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// check token
-		token := r.Header.Get("Authorization")
-		err := CheckToken(token)
-		if err != nil {
-			response.Error(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-
 		var body BodyRequestProductJSON
 
 		if err := request.JSON(r, &body); err != nil {
@@ -137,14 +128,6 @@ func (d *DefaultProducts) Create() http.HandlerFunc {
 
 func (d *DefaultProducts) Update() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// check token
-		token := r.Header.Get("Authorization")
-		err := CheckToken(token)
-		if err != nil {
-			response.Error(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-
 		// request
 		// get the id from path
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -221,14 +204,6 @@ func (d *DefaultProducts) Update() http.HandlerFunc {
 
 func (d *DefaultProducts) UpdatePartial() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// check token
-		token := r.Header.Get("Authorization")
-		err := CheckToken(token)
-		if err != nil {
-			response.Error(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-
 		// request
 		// get id from path
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -307,14 +282,6 @@ func (d *DefaultProducts) UpdatePartial() http.HandlerFunc {
 
 func (d *DefaultProducts) Delete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// check token
-		token := r.Header.Get("Authorization")
-		err := CheckToken(token)
-		if err != nil {
-			response.Error(w, http.StatusUnauthorized, "unauthorized")
-			return
-		}
-
 		// request
 		// get id from path
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -335,7 +302,7 @@ func (d *DefaultProducts) Delete() http.HandlerFunc {
 		}
 
 		// response
-		response.Text(w, http.StatusOK, "product deleted")
+		response.JSON(w, http.StatusNoContent, nil)
 	}
 }
 
@@ -344,13 +311,6 @@ func ValidateKeyExistante(body map[string]any, keys ...string) (err error) {
 		if _, ok := body[key]; !ok {
 			return errors.New("key does not exist")
 		}
-	}
-	return
-}
-
-func CheckToken(tokenSend string) (err error) {
-	if tokenSend != os.Getenv("API_TOKEN") {
-		return errors.New("invalid token")
 	}
 	return
 }

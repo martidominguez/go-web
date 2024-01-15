@@ -5,13 +5,13 @@ import (
 	"app/internal/handler"
 	"app/internal/repository"
 	"app/internal/service"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -38,6 +38,11 @@ func NewRequest(method, url string, body io.Reader, urlParams map[string]string,
 			query.Add(key, value)
 		}
 		req.URL.RawQuery = query.Encode()
+	}
+
+	// - content-type for json requests
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	return
 }
@@ -187,7 +192,7 @@ func TestProductsDefault_GetAll(t *testing.T) {
 	})
 }
 
-func TestProductsDefault_Post(t *testing.T) { // it doen't work, check this later. there is a problem with the body of the request
+func TestProductsDefault_Post(t *testing.T) {
 	t.Run("success 01 - should create a product", func(t *testing.T) {
 		// arrange
 		// - repository
@@ -200,7 +205,27 @@ func TestProductsDefault_Post(t *testing.T) { // it doen't work, check this late
 		create := hd.Create()
 
 		// act
-		newProduct := []internal.Product{
+		body := `{"name": "product 1", "quantity": 1, "code_value": "code1", "is_published": true, "expiration": "14/05/2024", "price": 1.1}`
+		bodyReader := strings.NewReader(body)
+		req := NewRequest("POST", "/products", bodyReader, nil, nil)
+		res := httptest.NewRecorder()
+		create(res, req)
+
+		// assert
+		expectedCode := http.StatusCreated
+		expectedHeader := http.Header{"Content-Type": []string{"application/json"}}
+		expectedBody := fmt.Sprintf(`{"data":{"Id":1,"Name":"product 1","Quantity":1,"Code_value":"code1","Is_published":true,"Expiration":"14/05/2024","Price":1.1},"message":"product created"}`)
+		require.Equal(t, expectedCode, res.Code)
+		require.Equal(t, expectedHeader, res.Header())
+		require.JSONEq(t, expectedBody, res.Body.String())
+	})
+}
+
+func TestProductsDefault_Delete(t *testing.T) {
+	t.Run("success 01 - should delete a product", func(t *testing.T) {
+		// arrange
+		// - db
+		db := []internal.Product{
 			{
 				Id:           1,
 				Name:         "product 1",
@@ -211,14 +236,26 @@ func TestProductsDefault_Post(t *testing.T) { // it doen't work, check this late
 				Price:        100,
 			},
 		}
-		body := ConvertToJSON(t, newProduct)
-		bodyReader := bytes.NewReader(body)
-		req := NewRequest("POST", "/products", bodyReader, nil, nil)
+		// - repository
+		rp := repository.NewProductsMap(db)
+		// - service
+		sv := service.NewProductDefault(rp)
+		// - handler
+		hd := handler.NewDefaultProducts(sv)
+		// - handler function
+		delete := hd.Delete()
+
+		// act
+		req := NewRequest("GET", "/products/1", nil, map[string]string{"id": "1"}, nil)
 		res := httptest.NewRecorder()
-		create(res, req)
+		delete(res, req)
 
 		// assert
-		expectedCode := http.StatusCreated
+		expectedCode := http.StatusNoContent
+		expectedBody := ""
+		expectedHeaders := http.Header{}
 		require.Equal(t, expectedCode, res.Code)
+		require.Equal(t, expectedBody, res.Body.String())
+		require.Equal(t, expectedHeaders, res.Header())
 	})
 }
